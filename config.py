@@ -1,0 +1,10 @@
+name = "sens_compare"
+ssid = "Endeavour"
+password = "0neSmol$tep"
+broker = "192.168.100.70"
+sda_pin = 22
+scl_pin = 23
+period = 10
+dht_out = 15
+sleep_time = 3
+sleep_flag = True
