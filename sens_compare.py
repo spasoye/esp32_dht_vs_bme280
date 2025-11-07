@@ -1,5 +1,5 @@
 import machine
-import BME280.bme280_float as bme280
+import BME280.bme280_int as bme280
 import dht
 import utime
 import ntptime
@@ -23,14 +23,14 @@ def bme280_init():
 
     i2c = machine.I2C(scl=pinSCL, sda=pinSDA)
 
-    sensor = bme280.BME280(i2c=i2c)
+    bme_sensor = bme280.BME280(i2c=i2c)
 
-def bme280_read(timer):
+def bme280_read():
     global bme_sensor
     global client
     
     #sensor.measure()
-    temp,press,hum = sensor.read_compensated_data()
+    temp,press,hum = bme_sensor.read_compensated_data()
 
     # C
     temp = temp / 100
@@ -47,9 +47,9 @@ def dht_init():
     
     print("Initializing DHT22 sensor.")
     
-    dht_sensor = dht.DHT22
+    dht_sensor = dht.DHT22(config.dht_out)
     
-def dht_read(timer):
+def dht_read():
     global dht_sensor
     global client
     
@@ -58,11 +58,14 @@ def dht_read(timer):
     hum = dht_sensor.humidity()
     
     time = utime.localtime()
+    return temp, hum
     
-    print("sensor read")
-    
-    try:
-        client.publish(node_name + "/status", "online")
-        client.publish(node_name + "/sens", "{ \"temp\": " + str(temp) +", \"hum\": " + str(hum) + "}")
-    except Exception as e:
-        print("fail while publishing:", e)
+bme280_init()
+dht_init()
+
+while True:
+    bme_tem, bme_press, bme_hum = bme280_read()
+    dht_temp, dht_hum = dht_read()
+    print("BME280 values: ", bme_tem, bme_press, bme_hum )
+    print("DHT values: ", dht_temp, dht_hum)
+    utime.sleep(5)
