@@ -59,9 +59,24 @@ def dht_read():
     
     time = utime.localtime()
     return temp, hum
+def mqtt_init():
+    global mqtt_client
     
+    print("Initializing MQTT client.")
+    
+    # Assume config.py has: mqtt_broker, mqtt_port (optional, default 1883), mqtt_user (optional), mqtt_pass (optional), client_id, device_id, device_name
+    mqtt_client = MQTTClient(config.client_id, config.mqtt_broker, port=getattr(config, 'mqtt_port', 1883))
+    
+    if hasattr(config, 'mqtt_user') and hasattr(config, 'mqtt_pass'):
+        mqtt_client.set_credentials(config.mqtt_user, config.mqtt_pass)
+    mqtt_client.connect()
+    
+    print("Connected to MQTT broker.")
+        
 bme280_init()
 dht_init()
+
+mqtt_init()
 
 while True:
     bme_tem, bme_press, bme_hum = bme280_read()
