@@ -8,3 +8,4 @@ period = 10
 dht_out = 15
 sleep_time = 3
 sleep_flag = True
+mqtt_base_topic = "homeassistant
