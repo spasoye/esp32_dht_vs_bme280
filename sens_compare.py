@@ -90,6 +90,7 @@ def mqtt_discover_sensors():
     }
 
     mqtt_client.publish(MQTT_DISCOVERY_TOPIC, bytes(json.dumps(discovery_payload), 'utf-8'), retain=True)
+    
 
 
 def bme280_init():
@@ -160,8 +161,15 @@ mqtt_init()
 mqtt_discover_sensors()
 
 while True:
-    bme_tem, bme_press, bme_hum = bme280_read()
+    bme_temp, bme_press, bme_hum = bme280_read()
     dht_temp, dht_hum = dht_read()
-    print("BME280 values: ", bme_tem, bme_press, bme_hum )
+    print("BME280 values: ", bme_temp, bme_press, bme_hum )
+    mqtt_client.publish(STATE_TOPICS["bme280_temp"], str(bme_temp))
+    mqtt_client.publish(STATE_TOPICS["bme280_hum"], str(bme_hum))
+    mqtt_client.publish(STATE_TOPICS["bme280_press"], str(bme_press))
+
     print("DHT values: ", dht_temp, dht_hum)
-    utime.sleep(5)
+    mqtt_client.publish(STATE_TOPICS["dht22_temp"], str(dht_temp))
+    mqtt_client.publish(STATE_TOPICS["dht22_hum"], str(dht_hum))
+
+    utime.sleep(config.sleep_time)
