@@ -3,7 +3,7 @@ import BME280.bme280_int as bme280
 import dht
 import utime
 import ntptime
-import json
+import ujson as json
 import time
 from machine import Timer
 from machine import Pin
@@ -15,123 +15,81 @@ bme_sensor = None
 dht_sensor = None
 mqtt_client = None
 
-#def mqtt_init():
-#    global mqtt_client
-#    print("Initializing MQTT client.")
-#    mqtt_client = MQTTClient(config.name, config.broker)
-    
-#    mqtt_client.connect()
- 
+MQTT_DISCOVERY_TOPIC = "homeassistant/device/{}/config".format(config.device_id)
+STATE_TOPICS = {
+    "bme280_temp": config.device_id + "/env/bme280_temp",
+    "bme280_hum":  config.device_id + "/env/bme280_hum",
+    "bme280_press":config.device_id + "/env/bme280_press",
+    "dht22_temp":  config.device_id + "/env/dht22_temp",
+    "dht22_hum":   config.device_id + "/env/dht22_hum"
+}
+
 def mqtt_discover_sensors():
-    sensors = [
-        {
-            "name": "BME280 Temperature",
-            "unit": "°C",
-            "device_class": "temperature",
-            "state_topic": f"{config.mqtt_base_topic}/sensor/bme280_temperature/state",
-            "unique_id": "bme280_temperature",
+    discovery_payload = {
+        "dev": {
+            "ids": config.device_id,
+            "name": config.device_id,
+            "mf": "Spas Tech",
+            "mdl": "ESP32",
+            "sw": "1.0",
+            "hw": "1.0",
+            "sn": config.device_id
         },
-        {
-            "name": "BME280 Humidity",
-            "unit": "%",
+        "o": {
+            "name": "ESP32 Env Sensors",
+            "sw": "1.0",
+        },
+        "cmps": {
+        "bme280_temp": {
+            "p": "sensor",
+            "device_class": "temperature",
+            "unit_of_measurement": "°C",
+            "value_template": "{{ value }}",
+            "unique_id": "bme280_temperature",   # renamed
+            "name": "BME280 Temperature",        # friendly name
+            "state_topic": STATE_TOPICS["bme280_temp"]
+        },
+        "bme280_hum": {
+            "p": "sensor",
             "device_class": "humidity",
-            "state_topic": f"{config.mqtt_base_topic}/sensor/bme280_humidity/state",
+            "unit_of_measurement": "%",
+            "value_template": "{{ value }}",
             "unique_id": "bme280_humidity",
+            "name": "BME280 Humidity",
+            "state_topic": STATE_TOPICS["bme280_hum"]
         },
-        {
-            "name": "BME280 Pressure",
-            "unit": "hPa",
+        "bme280_press": {
+            "p": "sensor",
             "device_class": "pressure",
-            "state_topic": f"{config.mqtt_base_topic}/sensor/bme280_pressure/state",
+            "unit_of_measurement": "hPa",
+            "value_template": "{{ value }}",
             "unique_id": "bme280_pressure",
+            "name": "BME280 Pressure",
+            "state_topic": STATE_TOPICS["bme280_press"]
         },
-        {
-            "name": "DHT22 Temperature",
-            "unit": "°C",
+        "dht22_temp": {
+            "p": "sensor",
             "device_class": "temperature",
-            "state_topic": f"{config.mqtt_base_topic}/sensor/dht22_temperature/state",
-            "unique_id": "dht22_temperature",
+            "unit_of_measurement": "°C",
+            "value_template": "{{ value }}",
+            "unique_id": "dht22_temperature",   # renamed
+            "name": "DHT22 Temperature",        # friendly name
+            "state_topic": STATE_TOPICS["dht22_temp"]
         },
-        {
-            "name": "DHT22 Humidity",
-            "unit": "%",
+        "dht22_hum": {
+            "p": "sensor",
             "device_class": "humidity",
-            "state_topic": f"{config.mqtt_base_topic}/sensor/dht22_humidity/state",
+            "unit_of_measurement": "%",
+            "value_template": "{{ value }}",
             "unique_id": "dht22_humidity",
-        },
-    ]
-
-    for s in sensors:
-        topic = f"{config.mqtt_base_topic}/sensor/{s['unique_id']}/config"
-        payload = {
-            "name": s["name"],
-            "unique_id": s["unique_id"],
-            "state_topic": s["state_topic"],
-            "unit_of_measurement": s["unit"],
-            "device_class": s["device_class"],
-            "device": {
-                "identifiers": [config.client_id],
-                "name": config.client_id,
-                "model": "ESP32 MicroPython",
-                "manufacturer": "DIY"
-            }
+            "name": "DHT22 Humidity",
+            "state_topic": STATE_TOPICS["dht22_hum"]
         }
-        mqtt_client.publish(topic, bytes(json.dumps(payload)), retain=True)
-        print(f"Published discovery for {s['name']}")
-    
-#     discovery_payload = {
-#         "device": {
-#             "identifiers": f'{DEVICE_ID}',  # Unique device identifier
-#             "name": "doorbell",          # Device name
-#             "manufacturer": "ESP32",   # Optional
-#             "model": f'{DEVICE_ID}',    # Optional
-#             "configuration_url": f'http://{DEVICE_IP}'
-#         },
-#         "o": {  # Device metadata (optional)
-#             "name": "doorbell"
-#         },
-#         "cmps": {  # Components of the device
-#             "button": {  # Button trigger
-#                 "p": "device_automation",
-#                 "automation_type": "trigger",
-#                 "payload": "short_press",
-#                 "topic": "doorbell/triggers/button1",
-#                 "type": "button_short_press",
-#                 "subtype": "button_1"
-#             },
-#             "temp": {  # Environment sensor
-#                 "p": "sensor",
-#                 "state_topic": "doorbell/env_sens/temp",
-#                 "unique_id": "doorbell_temp",
-#                 "name": "Doorbell temperature",
-#                 "unit_of_measurement": "°C",
-#                 "value_template": '{{ value }}'
-#             },
-#             "humd": {  # Environment sensor
-#                 "p": "sensor",
-#                 "state_topic": "doorbell/env_sens/humd",
-#                 "unique_id": "doorbell_hum",
-#                 "name": "Doorbell humidity",
-#                 "unit_of_measurement": "%",
-#                 "value_template": '{{ value }}'
-#             },
-#             "press": {  # Environment sensor
-#                 "p": "sensor",
-#                 "state_topic": "doorbell/env_sens/press",
-#                 "unique_id": "doorbell_press",
-#                 "name": "Doorbell pressure",
-#                 "unit_of_measurement": "hPa",
-#                 "value_template": '{{ value }}'
-#             }
-#         }
-#     }
-# 
-#     # Publish the combined discovery payload
-#     print("Payload size: ", len(json.dumps(discovery_payload)))
-#     print("Sending combined discovery payload:\n", bytes(json.dumps(discovery_payload),'utf-8'))
-#     
-#     mqtt_client.publish(MQTT_DISCOVERY_TOPIC, bytes(json.dumps(discovery_payload),'utf-8'))
+    }
+        "qos": 1
+    }
 
+    mqtt_client.publish(MQTT_DISCOVERY_TOPIC, bytes(json.dumps(discovery_payload), 'utf-8'), retain=True)
 
 
 def bme280_init():
