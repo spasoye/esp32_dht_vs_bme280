@@ -5,13 +5,13 @@ import machine
 
 def connect_wifi():
     """Connects to Wi-Fi and returns the network interface."""
-    print("Connecting to "+config.SSID) 
+    print("Connecting to "+config.ssid) 
     wlan = network.WLAN(network.STA_IF)
     time.sleep(1)
     wlan.active(True)
     time.sleep(1)
     try:
-        wlan.connect(config.SSID, config.PASSWORD)
+        wlan.connect(config.ssid, config.password)
         time.sleep(1)
         while not wlan.isconnected():
             machine.idle()

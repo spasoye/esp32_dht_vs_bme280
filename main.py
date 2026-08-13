@@ -5,6 +5,7 @@ import ntptime
 import time
 import machine
 import asyncio
+import json
 
 from umqtt.simple import MQTTClient
 
@@ -143,8 +144,7 @@ def _dht_read():
     dht_sensor.measure()
     temp = dht_sensor.temperature()
     hum = dht_sensor.humidity()
-    
-    time = utime.localtime()
+
     return temp, hum
 
 def _mqtt_init():
@@ -153,7 +153,7 @@ def _mqtt_init():
     print("Initializing MQTT client.")
     
     # Assume config.py has: mqtt_broker, mqtt_port (optional, default 1883), mqtt_user (optional), mqtt_pass (optional), client_id, device_id, device_name
-    mqtt_client = MQTTClient(config.client_id, config.mqtt_broker, port=getattr(config, 'mqtt_port', 1883))
+    mqtt_client = MQTTClient(config.device_id, config.mqtt_broker, port=getattr(config, 'mqtt_port', 1883))
     
     if hasattr(config, 'mqtt_user') and hasattr(config, 'mqtt_pass'):
         mqtt_client.set_credentials(config.mqtt_user, config.mqtt_pass)
@@ -171,13 +171,15 @@ async def _mqtt_reconnect_task():
     
     print("Attempting to reconnect to MQTT broker...")
     while True:
-        try:
-            mqtt_client.connect()
-            mqtt_connected = True
-            print("Reconnected to MQTT broker.")
-        except Exception as e:
-            print("Failed to reconnect to MQTT broker:", e)
-            mqtt_connected = False
+        if mqtt_connected == False:
+            print("MQTT not connected. Attempting to reconnect...")
+            try:
+                mqtt_client.connect()
+                mqtt_connected = True
+                print("Reconnected to MQTT broker.")
+            except Exception as e:
+                print("Failed to reconnect to MQTT broker:", e)
+                mqtt_connected = False
 
         await asyncio.sleep(5)  # Wait before retrying
 
@@ -192,7 +194,7 @@ def _mqtt_publish(topic, message):
         print("MQTT publish failed:", e)
         mqtt_connected = False
 
-async def _sense_task(topic, message):
+async def _sense_task():
     global mqtt_client
 
     try:
@@ -205,16 +207,26 @@ async def _sense_task(topic, message):
     print("Sensors initialized.")
 
     while True:
+        # Read BME280 sensor values
         try:
             bme_temp, bme_press, bme_hum = _bme280_read()
+        except Exception as e:
+            print("Failed to read BME280 sensor:", e)
+            bme_temp, bme_press, bme_hum = None, None, None
+        # Read DHT22 sensor values
+        try:
             dht_temp, dht_hum = _dht_read()
-
-            print("BME280 values: ", bme_temp, bme_press, bme_hum )
+        except Exception as e:
+            print("Failed to read DHT22 sensor:", e)
+            dht_temp, dht_hum = None, None
+        
+        try:
+            print("Sending BME280 values: ", bme_temp, bme_press, bme_hum )
             mqtt_client.publish(STATE_TOPICS["bme280_temp"], str(bme_temp))
             mqtt_client.publish(STATE_TOPICS["bme280_hum"], str(bme_hum))
             mqtt_client.publish(STATE_TOPICS["bme280_press"], str(bme_press))
 
-            print("DHT values: ", dht_temp, dht_hum)
+            print("Sending DHT values: ", dht_temp, dht_hum)
             mqtt_client.publish(STATE_TOPICS["dht22_temp"], str(dht_temp))
             mqtt_client.publish(STATE_TOPICS["dht22_hum"], str(dht_hum))
 
@@ -231,6 +243,8 @@ async def _watchdog_task(wdt):
 def main():
     wlan = connect_wifi()
 
+    time.sleep(3)
+    
     wdt = machine.WDT(timeout=config.wdt_timeout_ms)
 
     # Initialize NTP time synchronization
@@ -249,7 +263,7 @@ def main():
     loop.create_task(_sense_task())
     loop.create_task(_mqtt_reconnect_task())
     loop.create_task(_watchdog_task(wdt))
-    
+
     loop.run_forever()
 
 
