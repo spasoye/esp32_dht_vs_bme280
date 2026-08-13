@@ -1,0 +1,18 @@
+# MicroPython / ESP32 secrets
+config.py
+
+# Python bytecode / compiled MicroPython
+__pycache__/
+*.py[cod]
+*.mpy
+
+# Editor / OS
+.vscode/
+.DS_Store
+
+# Virtual environments (esptool/ampy/mpremote workflows)
+.venv/
+venv/
+
+# Logs
+*.log
